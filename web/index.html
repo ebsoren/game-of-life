@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Game of Life</title>
+    <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+    <canvas id="grid"></canvas>
+    <div id="toolbar">
+        <button id="play">Start</button>
+        <button id="step">Step</button>
+        <button id="clear">Clear</button>
+        <label>Speed
+            <input id="speed" type="range" min="1" max="60" value="10" />
+            <span id="speed-label">10/s</span>
+        </label>
+        <span class="sep"></span>
+        <span id="hud"></span>
+    </div>
+    <div id="hint">click to toggle &middot; drag to pan</div>
+    <script type="module" src="./main.js"></script>
+</body>
+</html>
