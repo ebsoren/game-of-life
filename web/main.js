@@ -11,6 +11,9 @@ const stepBtn = document.getElementById("step");
 const clearBtn = document.getElementById("clear");
 const speed = document.getElementById("speed");
 const speedLabel = document.getElementById("speed-label");
+const randomSpawn = document.getElementById("random-spawn");
+const downloadStatsBtn = document.getElementById("download-stats");
+const resetStatsBtn = document.getElementById("reset-stats");
 const hud = document.getElementById("hud");
 
 await init();
@@ -161,20 +164,50 @@ function endPointer(e) {
 canvas.addEventListener("pointerup", endPointer);
 canvas.addEventListener("pointercancel", endPointer);
 
-// Simulation loop.
+// Simulation loop + per-second instrumentation.
 let running = false;
 let lastTickAt = 0;
+let generation = 0;
+let stats = [];           // [{ t_seconds, alive, generation }, ...]
+let samplerHandle = null;
+
+function recordSample() {
+    stats.push({ t: performance.now() / 1000, alive: cm.count(), gen: generation });
+}
+
+function startSampler() {
+    if (samplerHandle !== null) return;
+    recordSample(); // anchor sample at run start
+    samplerHandle = setInterval(recordSample, 1000);
+}
+
+function stopSampler() {
+    if (samplerHandle === null) return;
+    clearInterval(samplerHandle);
+    samplerHandle = null;
+}
+
+// rAF fires once per display frame (~60 Hz), so we do as many ticks per
+// frame as needed to honour the requested rate, capped to keep a slow
+// frame from locking the page up.
+const MAX_TICKS_PER_FRAME = 2000;
 
 function loop(now) {
-    if (running) {
-        const interval = 1000 / Number(speed.value);
-        if (now - lastTickAt >= interval) {
-            cm.tick();
-            lastTickAt = now;
-            draw();
-        }
-        requestAnimationFrame(loop);
+    if (!running) return;
+    if (lastTickAt === 0) lastTickAt = now;
+    const interval = 1000 / Number(speed.value);
+    let ticks = 0;
+    while (now - lastTickAt >= interval && ticks < MAX_TICKS_PER_FRAME) {
+        cm.tick();
+        generation += 1;
+        lastTickAt += interval;
+        ticks += 1;
     }
+    // If we hit the cap (or the tab was backgrounded and we have a huge
+    // backlog), drop the debt rather than chasing it forever.
+    if (ticks === MAX_TICKS_PER_FRAME) lastTickAt = now;
+    if (ticks > 0) draw();
+    requestAnimationFrame(loop);
 }
 
 function setRunning(next) {
@@ -183,14 +216,39 @@ function setRunning(next) {
     playBtn.classList.toggle("active", running);
     if (running) {
         lastTickAt = 0;
+        startSampler();
         requestAnimationFrame(loop);
+    } else {
+        stopSampler();
     }
 }
 
+function downloadStats() {
+    if (!stats.length) return;
+    const t0 = stats[0].t;
+    const lines = ["time_seconds,alive,generation"];
+    for (const s of stats) {
+        lines.push(`${(s.t - t0).toFixed(3)},${s.alive},${s.gen}`);
+    }
+    const blob = new Blob([lines.join("\n") + "\n"], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `gol-stats-${new Date().toISOString().replace(/[:.]/g, "-")}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}
+
 playBtn.addEventListener("click", () => setRunning(!running));
-stepBtn.addEventListener("click", () => { cm.tick(); draw(); });
+stepBtn.addEventListener("click", () => { cm.tick(); generation += 1; draw(); });
 clearBtn.addEventListener("click", () => { cm.clear(); draw(); });
 speed.addEventListener("input", () => { speedLabel.textContent = `${speed.value}/s`; });
+randomSpawn.addEventListener("change", () => cm.set_random_spawn(randomSpawn.checked));
+cm.set_random_spawn(randomSpawn.checked);
+downloadStatsBtn.addEventListener("click", downloadStats);
+resetStatsBtn.addEventListener("click", () => { stats = []; generation = 0; });
 
 // Keyboard: space to play/pause, n to step, c to clear.
 window.addEventListener("keydown", (e) => {

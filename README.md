@@ -44,3 +44,19 @@ After editing `src/lib.rs`, re-run `./build.sh` and hard-reload the browser
 - **Start / Stop** runs `tick()` on a timer; **Step** advances one generation
 - **Speed** slider sets ticks per second
 - Keyboard: `space` play/pause, `n` step, `c` clear
+
+## Stats / instrumentation
+
+While the simulation is running, the frontend samples the alive-cell count
+once per wall-clock second and tags each sample with the generation number.
+Click **Download stats** in the toolbar to export `gol-stats-*.csv` with
+columns `time_seconds,alive,generation`. **Reset stats** clears the buffer.
+
+To plot it (requires `pip install matplotlib`):
+
+```sh
+python3 tools/plot.py path/to/gol-stats-....csv
+```
+
+Writes a PNG next to the CSV and opens an interactive window if a display
+is available.
